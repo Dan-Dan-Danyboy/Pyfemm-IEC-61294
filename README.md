@@ -1,4 +1,4 @@
-# Pyfemm
+# Current in the IEC 61294 standard
 
 A simulation of distribution of electrical voltage field and current flow accros the geometry of the IEC 61294 standard. The exposed code is just an example of pyfemm usage, nevertheless I've tried to make it easily managable for use of other geometries.
 
