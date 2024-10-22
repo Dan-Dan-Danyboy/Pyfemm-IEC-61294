@@ -215,6 +215,19 @@ class corona_type_PD:
             return q
         
         def plot_formal_line(self,x, y, title, xlabel, ylabel, legend):
+            try:
+                os.makedirs(os.path.join(os.getcwd(),'Plots'))
+            except FileExistsError:
+                pass
+            except OSError:
+                raise OSError('Operating System Error')           
+            try:
+                os.makedirs(os.path.join(os.getcwd(),'Plots','2D Plots'))
+            except FileExistsError:
+                pass
+            except OSError:
+                raise OSError('Operating System Error')
+                
             plt.figure(figsize=(8, 5))
             
             # Establecer el estilo formal
@@ -266,6 +279,18 @@ class corona_type_PD:
             - zlabel: Label for the Z axis (default: 'Z Axis')
             - cmap: Colormap for surface plot (default: 'viridis')
             """
+            try:
+                os.makedirs(os.path.join(os.getcwd(),'Plots'))
+            except FileExistsError:
+                pass
+            except OSError:
+                raise OSError('Operating System Error')           
+            try:
+                os.makedirs(os.path.join(os.getcwd(),'Plots','3D Plots'))
+            except FileExistsError:
+                pass
+            except OSError:
+                raise OSError('Operating System Error')
             
             # Convert X and Y to meshgrid (2D arrays) from 1D arrays
             X, Y = np.meshgrid(X, Y)
