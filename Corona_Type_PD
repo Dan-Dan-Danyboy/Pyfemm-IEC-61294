@@ -6,11 +6,17 @@ import shutil
 import time
 from matplotlib import pyplot as plt
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
 
 femm_doc_path = os.path.join(os.getcwd(),'femm program','Geometry.FEC')
 
 """
-Oil -> Aceite
+Since the main .FEC document is originally in spanish the names of materials are asigned in spanish. These are the translations that need to be known:
+Aceite -> Oil
+Bola -> Sphere
+Punta -> Spike
+Aluminio -> Aluminum
+Acero -> Steel
 """
 
 class corona_type_PD:
@@ -26,15 +32,23 @@ class corona_type_PD:
         def __init__(self,outer_instance):
             self.outer = outer_instance
 
-        def oil_conductivity(self,ox,oy=None):
+        def oil_conductivity(self,ox=None,oy=None):
+            if ox is None and oy is None:
+                return ValueError('ox and oy cannot be both None')
             if oy is None:
                 oy = ox
+            elif ox is None:
+                ox = oy
             femm.ci_modifymaterial('Aceite',1,ox)
             femm.ci_modifymaterial('Aceite',2,oy)
 
-        def oil_relative_permitivity(self,ex,ey=None):
+        def oil_relative_permitivity(self,ex=None,ey=None):
+            if ey is None and ex is None:
+                raise ValueError('ey and ex cannot be both None')
             if ey is None:
                 ey = ex
+            elif ex is None:
+                ex = ey
             femm.ci_modifymaterial('Aceite',3,ex)
             femm.ci_modifymaterial('Aceite',4,ey)
 
@@ -189,6 +203,7 @@ class corona_type_PD:
     class make_plt:
         def __init__(self,outer_instance):
             self.outer = outer_instance
+            self.intensity_variation = self.current_variation_with_properties_variation(self.outer)
 
         def calculate_current(self,x1=2228*100,x2=2268*100,y=1120):
             q = 0
@@ -237,6 +252,47 @@ class corona_type_PD:
             
             # Mostrar el gráfico
             # plt.show()
+        def plot_3d_surface(self, X, Y, Z, title='3D Surface Plot', xlabel='X Axis', ylabel='Y Axis', zlabel='Z Axis', cmap='viridis'):
+            """
+            Function to plot a 3D surface given X, Y, and Z values.
+            
+            Parameters:
+            - X: 1D array for X coordinates
+            - Y: 1D array for Y coordinates
+            - Z: 2D array (list of lists) for Z values, corresponding to each X and Y point
+            - title: Title of the plot (default: '3D Surface Plot')
+            - xlabel: Label for the X axis (default: 'X Axis')
+            - ylabel: Label for the Y axis (default: 'Y Axis')
+            - zlabel: Label for the Z axis (default: 'Z Axis')
+            - cmap: Colormap for surface plot (default: 'viridis')
+            """
+            
+            # Convert X and Y to meshgrid (2D arrays) from 1D arrays
+            X, Y = np.meshgrid(X, Y)
+            
+            # Convert Z to numpy array if it's not already
+            Z = np.array(Z)
+            
+            # Create a figure for plotting
+            fig = plt.figure(figsize=(10, 7))
+            ax = fig.add_subplot(111, projection='3d')
+
+            # Plot the surface
+            surf = ax.plot_surface(X, Y, Z, cmap=cmap)
+
+            # Add a color bar for the height values
+            fig.colorbar(surf, ax=ax, shrink=0.5, aspect=5)
+
+            # Set labels and title
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+            ax.set_zlabel(zlabel)
+            ax.set_title(title)
+
+            plt.savefig(os.path.join(os.getcwd(),'Plots',title+' [{}-{}].png'.format(X[0],X[-1])), dpi=300)
+            print('Plot saved in',os.path.join(os.getcwd(),'Plots',title+' [{}-{}].png'.format(X[0],X[-1])))
+            # Show the plot
+            # plt.show()
 
         def current_density_distribution_in_axis(self,num_dots=50,y1=0,y2=49.99):
             #(0,0) = (2247.5750,1125.8-50)
@@ -262,20 +318,93 @@ class corona_type_PD:
             self.plot_formal_line(x_axis,Current_density_values,'Current density through axis','Height axis','Current density [A/mm^2]',None)
             self.plot_formal_line(x_axis,Voltage_values,'Tension values through axis','Height axis','Tension [V]',None)
 
-        def current_variation_with_properties_variation(self,propertie,value1,value2,num_dots):
-            properties = ['Tension']
-            if propertie not in properties:
-                raise ValueError("Error, {} is not amongst the options. \nOptions: {}".format(propertie,properties))
-            values = np.arange(value1,value2,(value2-value1)/num_dots)
+        class current_variation_with_properties_variation:
+            def __init__(self,outer_instance):
+                self.outer = outer_instance
 
-            femm.openfemm()
-            femm.opendocument(self.outer.doc)
-            
-            if propertie == 'Tension':
+            def tension(self,value1,value2,num_dots):
+                values = np.arange(value1,value2,(value2-value1)/num_dots)
+                femm.openfemm()
+                femm.opendocument(self.outer.doc)              
                 Is = []
                 for value in values:
                     self.outer.modify_properties.sphere_tension(value)
                     femm.ci_analyse(3)
                     femm.ci_loadsolution()
-                    Is.append(self.calculate_current())
-                self.plot_formal_line(values,Is,'Current variation caused by tension','Tension [V]','Current [A]',None)
+                    Is.append(self.outer.make_plots.calculate_current())
+                self.outer.make_plots.plot_formal_line(values,Is,'Current variation caused by tension','Tension [V]','Current [A]',None)
+
+            def conductivity(self,num_dots,ox1=None,ox2=None,oy1=None,oy2=None,x_equal_y=True):
+                if ox1 is None:
+                    if oy1 is None:
+                        raise ValueError('ox and oy cannot be both None')
+                    elif oy2 is None:
+                        raise ValueError('Incomplete inputs')
+                    else:
+                        y_values = np.arange(oy1,oy2,(oy2-oy1)/num_dots)
+                        if x_equal_y:
+                            x_values = y_values
+                        else:
+                            x_values = [10**(-12) for value in y_values]
+                elif ox2 is None:
+                    raise ValueError('Incomplete inputs')
+                else:
+                    x_values = np.arange(ox1,ox2,(ox2-ox1)/num_dots)
+                    if oy1 is None or oy2 is None:
+                        if x_equal_y:
+                            y_values = x_values
+                        else:
+                            y_values = [10**(-12) for value in x_values]
+                    else:
+                        y_values = np.arange(oy1,oy2,(oy2-oy1)/num_dots)
+                
+                femm.openfemm()
+                femm.opendocument(self.outer.doc)
+                
+                if x_equal_y:
+                    Is = []
+                    for y_value in y_values:
+                        self.outer.modify_properties.oil_conductivity(y_value,y_value)
+                        femm.ci_analyse(3)
+                        femm.ci_loadsolution()
+                        Is.append(self.outer.make_plots.calculate_current())
+
+                elif ox1 is None or ox2 is None:
+                    Is = []
+                    for y_value in y_values:
+                        self.outer.modify_properties.oil_conductivity(x_values[0],y_value)
+                        femm.ci_analyse(3)
+                        femm.ci_loadsolution()
+                        Is.append(self.outer.make_plots.calculate_current())
+                
+                elif oy1 is None or oy2 is None:
+                    Is = []
+                    for x_value in x_values:
+                        self.outer.modify_properties.oil_conductivity(x_value,y_values[0])
+                        femm.ci_analyse(3)
+                        femm.ci_loadsolution()
+                        Is.append(self.outer.make_plots.calculate_current())
+
+                else:
+                    Iss = []
+                    for x_value in x_values:
+                        Is = []
+                        for y_value in y_values:
+                            self.outer.modify_properties.oil_conductivity(x_value,y_value)
+                            femm.ci_analyse(3)
+                            femm.ci_loadsolution()
+                            Is.append(self.outer.make_plots.calculate_current())
+                        Iss.append(Is)
+
+                if x_equal_y:
+                    self.outer.make_plots.plot_formal_line(x_values,Is,'Current variation caused by conductivity variation',
+                    'Conductivity [S/m]','Current [A]',None)
+                elif ox1 is None or ox2 is None:
+                    self.outer.make_plots.plot_formal_line(y_values,Is,'Current variation caused by conductivity variation in y axis',
+                    'Conductivity [S/m]','Current [A]',None)          
+                elif oy1 is None or oy2 is None:
+                    self.outer.make_plots.plot_formal_line(x_values,Is,'Current variation caused by conductivity variation in x axis',
+                    'Conductivity [S/m]','Current [A]',None)
+                else:
+                    self.outer.make_plots.plot_3d_surface(x_values,y_values,Iss,'Current variation caused by conductivity variation',
+                    'Conductivity [S/m] x axis','Conductivity [S/m] y axis','Current [A]',None)
