@@ -127,6 +127,7 @@ class corona_type_PD:
 
             femm.openfemm()
             femm.opendocument(self.outer.doc)
+            self.outer.modify_properties.oil_conductivity(9*10**(-12))
             while v1<=v2:
                 v1 += step
                 # self.outer.modify_properties.sphere_tension(v1*1000)
